@@ -3,8 +3,20 @@ const express = require('express');
 const bookingRoutes = require('./routes/bookings');
 const webhookRoutes = require('./routes/webhooks'); // Import webhook routes
 const path = require('path');
+const icalService = require('./services/ical');
+const cors = require('cors');
+
+// Start backend services
+icalService.startAutoRefresh();
 
 const app = express();
+
+// Configure CORS
+app.use(cors({
+    origin: ['http://localhost:3000', 'https://replit.com', process.env.FRONTEND_URL], // Add your Replit URL here
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 const port = process.env.PORT || 3000;
 
 // Webhooks must be mounted BEFORE express.json() to access raw body

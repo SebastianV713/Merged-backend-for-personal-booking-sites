@@ -19,8 +19,8 @@ async function runTest() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            startDate: '2026-06-01',
-            endDate: '2026-06-05',
+            startDate: '2026-06-10',
+            endDate: '2026-06-15',
             nights: 4,
             rate: 100
         })
