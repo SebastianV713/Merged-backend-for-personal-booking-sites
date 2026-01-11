@@ -4,6 +4,48 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const availabilityService = require('../services/availability');
 const stripeService = require('../services/stripe');
+const icalService = require('../services/ical');
+
+// Get all blocked dates (Local + iCal)
+router.get('/blocked', async (req, res) => {
+    try {
+        // 1. Local Bookings
+        const localBookings = await new Promise((resolve, reject) => {
+            db.all(
+                `SELECT start_date, end_date FROM bookings WHERE status = 'confirmed' OR status = 'pending'`,
+                [],
+                (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows);
+                }
+            );
+        });
+
+        // 2. iCal Blocks
+        const icalBlocks = icalService.getBlockedDates();
+
+        // 3. Merge and Normalize
+        // Note: Booking dates are strings YYYY-MM-DD. iCal dates are Date objects.
+        const responseData = [
+            ...localBookings.map(b => ({
+                start: b.start_date,
+                end: b.end_date,
+                source: 'local'
+            })),
+            ...icalBlocks.map(b => ({
+                start: b.start,
+                end: b.end,
+                source: 'airbnb',
+                summary: b.summary
+            }))
+        ];
+
+        res.json(responseData);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch blocked dates' });
+    }
+});
 
 // Create a pending booking
 router.post('/', async (req, res) => {
