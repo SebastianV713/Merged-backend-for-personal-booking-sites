@@ -13,9 +13,10 @@ const app = express();
 
 // Configure CORS
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://replit.com', process.env.FRONTEND_URL], // Add your Replit URL here
+    origin: ['http://localhost:3000', 'https://workspace.vaughanbusiness.replit.app', process.env.FRONTEND_URL].filter(Boolean),
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 const port = process.env.PORT || 3000;
 
