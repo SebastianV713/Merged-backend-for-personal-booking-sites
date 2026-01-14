@@ -3,9 +3,10 @@ require('dotenv').config();
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-async function createCheckoutSession(bookingId, amountCents, successUrl, cancelUrl) {
+async function createCheckoutSession(bookingId, amountCents, successUrl, cancelUrl, customerEmail, metadata = {}) {
     const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
+        customer_email: customerEmail,
         line_items: [{
             price_data: {
                 currency: 'usd',
@@ -21,7 +22,8 @@ async function createCheckoutSession(bookingId, amountCents, successUrl, cancelU
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: {
-            bookingId: bookingId
+            bookingId: bookingId,
+            ...metadata
         }
     });
 

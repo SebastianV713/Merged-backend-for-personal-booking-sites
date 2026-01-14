@@ -93,18 +93,44 @@ router.post('/:id/checkout', async (req, res) => {
         }
 
         // 3. Create Stripe Session
-        const successUrl = `${req.protocol}://${req.get('host')}/success?session_id={CHECKOUT_SESSION_ID}`;
-        const cancelUrl = `${req.protocol}://${req.get('host')}/cancel`;
+        // 3. Create Stripe Session
+        // Use production URL if available (should be set in env or passed from request, but for now hardcoded structure based on request)
+        // Ideally, FRONTEND_URL should be in .env. We will fall back to request header construction if not strictly defined, 
+        // but user requested specific format: https://[YOUR_PUBLISHED_REPLIT_DOMAIN]/success
+
+        // We'll update the booking with any provided guest details first
+        const { guests, guestName, email, checkIn, checkOut } = req.body;
+
+        if (guests || guestName || email) {
+            const updateQuery = `UPDATE bookings SET guests = ?, guest_name = ?, guest_email = ? WHERE id = ?`;
+            await new Promise((resolve) => {
+                db.run(updateQuery, [guests, guestName, email, booking.id], (err) => {
+                    if (err) console.error("Failed to update booking details", err);
+                    resolve();
+                });
+            });
+        }
+
+        const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
+        const successUrl = `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`;
+        const cancelUrl = `${baseUrl}/cancel`;
 
         try {
             const session = await stripeService.createCheckoutSession(
                 booking.id,
                 booking.total_price,
                 successUrl,
-                cancelUrl
+                cancelUrl,
+                email, // customerEmail
+                { // metadata
+                    guestName,
+                    guests,
+                    checkIn,
+                    checkOut
+                }
             );
 
-            // Save session ID (optional, but good for tracking)
+            // Save session ID
             db.run('UPDATE bookings SET stripe_session_id = ? WHERE id = ?', [session.id, booking.id], (err) => {
                 if (err) console.error("Failed to update booking with session ID", err);
             });
