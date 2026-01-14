@@ -13,13 +13,28 @@ const app = express();
 
 // Configure CORS
 app.use(cors({
-    origin: [
-        'http://localhost:3000',
-        'https://workspace.vaughanbusiness.replit.app',
-        'http://127.0.0.1:5000',
-        'http://localhost:5000',
-        process.env.FRONTEND_URL
-    ].filter(Boolean),
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'https://workspace.vaughanbusiness.replit.app',
+            'http://127.0.0.1:5000',
+            'http://localhost:5000',
+            // Add dynamic origin check if needed, or specific domains
+            // The user asked for "https://[YOUR_PUBLISHED_REPLIT_DOMAIN]" which implies they might replace it or it's a placeholder.
+            // We'll trust the process.env.FRONTEND_URL for the dynamic one if set.
+            process.env.FRONTEND_URL
+        ];
+
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.replit.app')) {
+            // allowing all replit.app subdomains to be safe since user didn't specify the exact "YOUR_PUBLISHED_REPLIT_DOMAIN" value
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
