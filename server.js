@@ -13,7 +13,13 @@ const app = express();
 
 // Configure CORS
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://workspace.vaughanbusiness.replit.app', process.env.FRONTEND_URL].filter(Boolean),
+    origin: [
+        'http://localhost:3000',
+        'https://workspace.vaughanbusiness.replit.app',
+        'http://127.0.0.1:5000',
+        'http://localhost:5000',
+        process.env.FRONTEND_URL
+    ].filter(Boolean),
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
