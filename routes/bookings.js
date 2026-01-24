@@ -5,6 +5,7 @@ const db = require('../db');
 const availabilityService = require('../services/availability');
 const stripeService = require('../services/stripe');
 const icalService = require('../services/ical');
+const priceSyncService = require('../services/priceSync');
 
 // Get all blocked dates (Local + iCal)
 router.get('/blocked', async (req, res) => {
@@ -92,30 +93,54 @@ router.post('/:id/checkout', async (req, res) => {
             return res.status(409).json({ error: 'Dates are no longer available' });
         }
 
-        // 3. Create Stripe Session
-        // 3. Create Stripe Session
-        // Use production URL if available (should be set in env or passed from request, but for now hardcoded structure based on request)
-        // Ideally, FRONTEND_URL should be in .env. We will fall back to request header construction if not strictly defined, 
-        // but user requested specific format: https://[YOUR_PUBLISHED_REPLIT_DOMAIN]/success
+        // 3. Recalculate price using dynamic rates
+        try {
+            const rates = await priceSyncService.getRatesForRange(booking.start_date, booking.end_date);
 
-        // We'll update the booking with any provided guest details first
-        const { guests, guestName, email, checkIn, checkOut } = req.body;
+            // Calculate number of nights
+            const start = new Date(booking.start_date);
+            const end = new Date(booking.end_date);
+            const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 
-        if (guests || guestName || email) {
-            const updateQuery = `UPDATE bookings SET guests = ?, guest_name = ?, guest_email = ? WHERE id = ?`;
-            await new Promise((resolve) => {
-                db.run(updateQuery, [guests, guestName, email, booking.id], (err) => {
-                    if (err) console.error("Failed to update booking details", err);
-                    resolve();
+            // Sum up prices
+            let totalCents = 0;
+            if (rates.length > 0) {
+                const totalAmount = rates.reduce((sum, r) => sum + r.price, 0);
+                totalCents = Math.round(totalAmount * 100);
+            } else {
+                console.log('No dynamic rates found, using original booking price');
+                totalCents = booking.total_price;
+            }
+
+            // Update booking with new total
+            await new Promise((resolve, reject) => {
+                db.run('UPDATE bookings SET total_price = ? WHERE id = ?', [totalCents, booking.id], (err) => {
+                    if (err) reject(err);
+                    else resolve();
                 });
             });
-        }
 
-        const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
-        const successUrl = `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`;
-        const cancelUrl = `${baseUrl}/cancel`;
+            // Update local object for Stripe creation
+            booking.total_price = totalCents;
 
-        try {
+            // 4. Create Stripe Session
+            // We'll update the booking with any provided guest details first
+            const { guests, guestName, email, checkIn, checkOut } = req.body;
+
+            if (guests || guestName || email) {
+                const updateQuery = `UPDATE bookings SET guests = ?, guest_name = ?, guest_email = ? WHERE id = ?`;
+                await new Promise((resolve) => {
+                    db.run(updateQuery, [guests, guestName, email, booking.id], (err) => {
+                        if (err) console.error("Failed to update booking details", err);
+                        resolve();
+                    });
+                });
+            }
+
+            const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
+            const successUrl = `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`;
+            const cancelUrl = `${baseUrl}/cancel`;
+
             const session = await stripeService.createCheckoutSession(
                 booking.id,
                 booking.total_price,
@@ -137,7 +162,7 @@ router.post('/:id/checkout', async (req, res) => {
 
             res.json({ sessionId: session.id });
         } catch (e) {
-            console.error('Stripe error:', e);
+            console.error('Checkout error:', e);
             res.status(500).json({ error: 'Payment initialization failed' });
         }
     });

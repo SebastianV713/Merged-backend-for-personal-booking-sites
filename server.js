@@ -8,6 +8,8 @@ const cors = require('cors');
 
 // Start backend services
 icalService.startAutoRefresh();
+const priceSyncService = require('./services/priceSync');
+priceSyncService.syncRates();
 
 const app = express();
 

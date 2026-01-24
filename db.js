@@ -23,6 +23,12 @@ db.serialize(() => {
     guest_email TEXT
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS daily_rates (
+    date TEXT PRIMARY KEY,
+    price DECIMAL,
+    min_stay INTEGER
+  )`);
+
   // Migration for existing tables (safe to run even if columns exist in some sqlite versions, but better to check or ignore error)
   const columnsToAdd = [
     { name: 'guests', type: 'INTEGER' },
