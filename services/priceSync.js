@@ -13,16 +13,22 @@ async function syncRates() {
     try {
         console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
 
-        // Updated endpoint to /calendar to get daily recommended rates
-        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/calendar?pms=airbnb`, {
-            headers: {
-                'X-API-KEY': PRICELABS_API_KEY,
-                'Accept': 'application/json'
+        // Updated to POST /get_prices endpoint as requested
+        const response = await axios.post('https://api.pricelabs.co/v1/get_prices',
+            {
+                listing_ids: [LISTING_ID],
+                pms: 'airbnb'
             },
-            validateStatus: function (status) {
-                return status >= 200 && status < 600;
+            {
+                headers: {
+                    'X-API-KEY': PRICELABS_API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                validateStatus: function (status) {
+                    return status >= 200 && status < 600;
+                }
             }
-        });
+        );
 
         // Check if response is JSON
         const contentType = response.headers['content-type'];
@@ -40,16 +46,46 @@ async function syncRates() {
         }
 
         const data = response.data;
-        // Calendar endpoint typically returns data directly or in a 'data' property
-        // The structure usually is an array of objects: [{ date: '2023-01-01', price: 100, min_stay: 2 }, ...]
-        const rates = Array.isArray(data) ? data : (data.data || []);
 
-        if (!Array.isArray(rates)) {
-            console.error('Unexpected PriceLabs response format:', data);
+        // The /get_prices endpoint typically returns an array of objects, each containing a 'data' array for the listing
+        // Or it might be an object keyed by listing_id. 
+        // We need to find the data for our LISTING_ID.
+
+        // Detailed logging to help understand the structure if it fails
+        if (!data) {
+            console.error('PriceLabs returned empty data');
             return;
         }
 
-        console.log(`Received ${rates.length} daily rates from calendar. Updating database...`);
+        let rates = [];
+
+        // Attempt to extract rates based on common structures for this endpoint
+        if (Array.isArray(data)) {
+            // Check if it's an array of listings
+            const listingData = data.find(item => item.listing_id == LISTING_ID);
+            if (listingData && Array.isArray(listingData.data)) {
+                rates = listingData.data;
+            } else if (data.length > 0 && data[0].date) {
+                // Maybe it returned the rates directly (unlikely for bulk endpoint but possible if only 1 requested)
+                rates = data;
+            }
+        } else if (typeof data === 'object') {
+            // Check if keyed by ID
+            if (data[LISTING_ID] && Array.isArray(data[LISTING_ID])) {
+                rates = data[LISTING_ID];
+            } else if (data.data && Array.isArray(data.data)) {
+                // Fallback to standard data wrapper
+                rates = data.data;
+            }
+        }
+
+        if (!rates || rates.length === 0) {
+            console.error('Could not find rates data in PriceLabs response. Response keys:', Object.keys(data));
+            console.log('Response sample:', JSON.stringify(data).substring(0, 200));
+            return;
+        }
+
+        console.log(`Received ${rates.length} daily rates from get_prices. Updating database...`);
 
         db.serialize(() => {
             const stmt = db.prepare('INSERT OR REPLACE INTO daily_rates (date, price, min_stay) VALUES (?, ?, ?)');
@@ -57,7 +93,6 @@ async function syncRates() {
             db.run('BEGIN TRANSACTION');
 
             rates.forEach(day => {
-                // Map fields: assuming date, price, min_stay exist in the response
                 const date = day.date;
                 const price = day.price;
                 const min_stay = day.min_stay;
