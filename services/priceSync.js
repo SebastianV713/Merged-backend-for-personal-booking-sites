@@ -2,21 +2,21 @@ const axios = require('axios');
 const db = require('../db');
 
 const PRICELABS_API_KEY = process.env.PRICELABS_API_KEY;
-const LISTING_ID = '19912038';
+const LISTING_ID = process.env.PRICELABS_LISTING_ID;
 
 async function syncRates() {
-    if (!PRICELABS_API_KEY) {
-        console.warn('PRICELABS_API_KEY is not set. Skipping rate sync.');
+    if (!PRICELABS_API_KEY || !LISTING_ID) {
+        console.warn('PRICELABS_API_KEY or PRICELABS_LISTING_ID is not set. Skipping rate sync.');
         return;
     }
 
     try {
-        console.log('Fetching rates from PriceLabs...');
+        console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
         // PriceLabs Customer API endpoint to get calendar data
         const response = await axios.get(`https://api.pricelabs.co/v1/listing_prices?listing_id=${LISTING_ID}`, {
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${PRICELABS_API_KEY}`
+                'X-API-KEY': PRICELABS_API_KEY
             }
         });
 
