@@ -13,22 +13,17 @@ async function syncRates() {
     try {
         console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
 
-        // Updated to POST /get_prices endpoint as requested
-        const response = await axios.post('https://api.pricelabs.co/v1/get_prices',
-            {
-                listing_ids: [LISTING_ID],
-                pms: 'airbnb'
+        // Reverting to GET /calendar endpoint as requested with strict headers
+        // URL: https://api.pricelabs.co/v1/listings/${id}/calendar?pms=airbnb
+        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/calendar?pms=airbnb`, {
+            headers: {
+                'X-API-KEY': PRICELABS_API_KEY,
+                'Accept': 'application/json'
             },
-            {
-                headers: {
-                    'X-API-KEY': PRICELABS_API_KEY,
-                    'Content-Type': 'application/json'
-                },
-                validateStatus: function (status) {
-                    return status >= 200 && status < 600;
-                }
+            validateStatus: function (status) {
+                return status >= 200 && status < 600;
             }
-        );
+        });
 
         // Check if response is JSON
         const contentType = response.headers['content-type'];
@@ -47,45 +42,16 @@ async function syncRates() {
 
         const data = response.data;
 
-        // The /get_prices endpoint typically returns an array of objects, each containing a 'data' array for the listing
-        // Or it might be an object keyed by listing_id. 
-        // We need to find the data for our LISTING_ID.
+        // The calendar endpoint typically returns an array of daily rates directly, 
+        // or an object with a 'data' property containing the array.
+        const rates = Array.isArray(data) ? data : (data.data || []);
 
-        // Detailed logging to help understand the structure if it fails
-        if (!data) {
-            console.error('PriceLabs returned empty data');
+        if (!Array.isArray(rates) || rates.length === 0) {
+            console.error('Could not find rates array in PriceLabs response. Response keys:', Object.keys(data || {}));
             return;
         }
 
-        let rates = [];
-
-        // Attempt to extract rates based on common structures for this endpoint
-        if (Array.isArray(data)) {
-            // Check if it's an array of listings
-            const listingData = data.find(item => item.listing_id == LISTING_ID);
-            if (listingData && Array.isArray(listingData.data)) {
-                rates = listingData.data;
-            } else if (data.length > 0 && data[0].date) {
-                // Maybe it returned the rates directly (unlikely for bulk endpoint but possible if only 1 requested)
-                rates = data;
-            }
-        } else if (typeof data === 'object') {
-            // Check if keyed by ID
-            if (data[LISTING_ID] && Array.isArray(data[LISTING_ID])) {
-                rates = data[LISTING_ID];
-            } else if (data.data && Array.isArray(data.data)) {
-                // Fallback to standard data wrapper
-                rates = data.data;
-            }
-        }
-
-        if (!rates || rates.length === 0) {
-            console.error('Could not find rates data in PriceLabs response. Response keys:', Object.keys(data));
-            console.log('Response sample:', JSON.stringify(data).substring(0, 200));
-            return;
-        }
-
-        console.log(`Received ${rates.length} daily rates from get_prices. Updating database...`);
+        console.log(`Received ${rates.length} daily rates from calendar. Updating database...`);
 
         db.serialize(() => {
             const stmt = db.prepare('INSERT OR REPLACE INTO daily_rates (date, price, min_stay) VALUES (?, ?, ?)');
