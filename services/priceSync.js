@@ -12,29 +12,43 @@ async function syncRates() {
 
     try {
         console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
-        // PriceLabs Customer API endpoint to get calendar data
-        const response = await axios.get(`https://api.pricelabs.co/v1/listing_prices?listing_id=${LISTING_ID}`, {
+
+        // Updated endpoint and headers as requested
+        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/overrides?pms=airbnb`, {
             headers: {
-                'Content-Type': 'application/json',
-                'X-API-KEY': PRICELABS_API_KEY
+                'X-API-KEY': PRICELABS_API_KEY,
+                'Accept': 'application/json'
+            },
+            validateStatus: function (status) {
+                return status >= 200 && status < 600; // Accept all status codes to handle HTML error pages gracefully
             }
         });
 
-        const data = response.data;
-        // The API response structure depends on the exact endpoint. 
-        // Assuming /v1/listing_prices returns an object with a 'data' array or similar.
-        // Documentation typically returns: { "listing_id": "...", "data": [ { "date": "2023-01-01", "price": 100, "min_stay": 2 }, ... ] }
-        // If the structure is different (e.g. array at root), we adjust.
-        // Let's assume standard format based on "fetch next 365 days".
+        // Check if response is JSON
+        const contentType = response.headers['content-type'];
+        if (!contentType || !contentType.includes('application/json')) {
+            const bodyPreview = typeof response.data === 'string'
+                ? response.data.substring(0, 100)
+                : JSON.stringify(response.data).substring(0, 100);
+            console.error('PriceLabs returned non-JSON response:', bodyPreview);
+            return;
+        }
 
-        const rates = data.data || data; // handling potential wrapper
+        if (response.status !== 200) {
+            console.error(`PriceLabs API error (Status ${response.status}):`, JSON.stringify(response.data));
+            return;
+        }
+
+        const data = response.data;
+        // Assuming response data is the list of rates or data.data
+        const rates = Array.isArray(data) ? data : (data.data || []);
 
         if (!Array.isArray(rates)) {
             console.error('Unexpected PriceLabs response format:', data);
             return;
         }
 
-        console.log(`Received ${rates.length} daily rates. Updating database...`);
+        console.log(`Received ${rates.length} daily rates/overrides. Updating database...`);
 
         db.serialize(() => {
             const stmt = db.prepare('INSERT OR REPLACE INTO daily_rates (date, price, min_stay) VALUES (?, ?, ?)');
@@ -42,10 +56,9 @@ async function syncRates() {
             db.run('BEGIN TRANSACTION');
 
             rates.forEach(day => {
-                // key names might differ, assuming standard: date, price, min_stay
-                // Adjust if API returns 'p' or 'm' etc.
+                // Map fields: assuming date, price, min_stay exist in the response
                 const date = day.date;
-                const price = day.price;
+                const price = day.price; // or price_override?
                 const min_stay = day.min_stay;
 
                 if (date && price) {
