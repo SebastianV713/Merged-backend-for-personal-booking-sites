@@ -13,14 +13,14 @@ async function syncRates() {
     try {
         console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
 
-        // Updated endpoint and headers as requested
-        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/overrides?pms=airbnb`, {
+        // Updated endpoint to /calendar to get daily recommended rates
+        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/calendar?pms=airbnb`, {
             headers: {
                 'X-API-KEY': PRICELABS_API_KEY,
                 'Accept': 'application/json'
             },
             validateStatus: function (status) {
-                return status >= 200 && status < 600; // Accept all status codes to handle HTML error pages gracefully
+                return status >= 200 && status < 600;
             }
         });
 
@@ -40,7 +40,8 @@ async function syncRates() {
         }
 
         const data = response.data;
-        // Assuming response data is the list of rates or data.data
+        // Calendar endpoint typically returns data directly or in a 'data' property
+        // The structure usually is an array of objects: [{ date: '2023-01-01', price: 100, min_stay: 2 }, ...]
         const rates = Array.isArray(data) ? data : (data.data || []);
 
         if (!Array.isArray(rates)) {
@@ -48,7 +49,7 @@ async function syncRates() {
             return;
         }
 
-        console.log(`Received ${rates.length} daily rates/overrides. Updating database...`);
+        console.log(`Received ${rates.length} daily rates from calendar. Updating database...`);
 
         db.serialize(() => {
             const stmt = db.prepare('INSERT OR REPLACE INTO daily_rates (date, price, min_stay) VALUES (?, ?, ?)');
@@ -58,7 +59,7 @@ async function syncRates() {
             rates.forEach(day => {
                 // Map fields: assuming date, price, min_stay exist in the response
                 const date = day.date;
-                const price = day.price; // or price_override?
+                const price = day.price;
                 const min_stay = day.min_stay;
 
                 if (date && price) {
