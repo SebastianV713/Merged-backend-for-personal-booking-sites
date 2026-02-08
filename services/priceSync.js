@@ -11,32 +11,28 @@ async function syncRates() {
     }
 
     try {
-        console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
+        const url = `https://api.pricelabs.co/v1/listings/${LISTING_ID}/calendar?pms=airbnb`;
+        console.log(`Fetching rates from PriceLabs... URL: ${url}`);
 
-        // Reverting to GET /calendar endpoint as requested with strict headers
-        // URL: https://api.pricelabs.co/v1/listings/${id}/calendar?pms=airbnb
-        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/calendar?pms=airbnb`, {
+        const response = await axios.get(url, {
             headers: {
                 'X-API-KEY': PRICELABS_API_KEY,
                 'Accept': 'application/json'
             },
             validateStatus: function (status) {
-                return status >= 200 && status < 600;
+                return true; // Resolve promise for all status codes to handle them manually
             }
         });
 
-        // Check if response is JSON
-        const contentType = response.headers['content-type'];
-        if (!contentType || !contentType.includes('application/json')) {
-            const bodyPreview = typeof response.data === 'string'
-                ? response.data.substring(0, 100)
-                : JSON.stringify(response.data).substring(0, 100);
-            console.error('PriceLabs returned non-JSON response:', bodyPreview);
+        // Specific handling for 400 Invalid Request as requested
+        if (response.status === 400) {
+            console.error('PriceLabs returned 400 Invalid Request.');
+            console.error('Error Body:', JSON.stringify(response.data, null, 2));
             return;
         }
 
         if (response.status !== 200) {
-            console.error(`PriceLabs API error (Status ${response.status}):`, JSON.stringify(response.data));
+            console.error(`PriceLabs API error (Status ${response.status}):`, JSON.stringify(response.data, null, 2));
             return;
         }
 
@@ -89,7 +85,7 @@ function getRatesForRange(startDate, endDate) {
     return new Promise((resolve, reject) => {
         db.all(
             'SELECT * FROM daily_rates WHERE date >= ? AND date < ?',
-            [startDate, endDate], // endDate is exclusive in booking logic usually, but let's check strict inequalities
+            [startDate, endDate],
             (err, rows) => {
                 if (err) reject(err);
                 else resolve(rows);
