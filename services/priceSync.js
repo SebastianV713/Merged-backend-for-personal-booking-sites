@@ -11,29 +11,20 @@ async function syncRates() {
     }
 
     try {
-        console.log(`Fetching rates from PriceLabs for listing ${LISTING_ID}...`);
+        const url = 'https://api.pricelabs.co/v1/listing_prices';
+        console.log(`Fetching rates from PriceLabs via POST ${url} for listing ${LISTING_ID}...`);
 
-        // Reverting to GET /calendar endpoint as requested with strict headers
-        // URL: https://api.pricelabs.co/v1/listings/${id}/calendar?pms=airbnb
-        const response = await axios.get(`https://api.pricelabs.co/v1/listings/${LISTING_ID}/calendar?pms=airbnb`, {
-            headers: {
-                'X-API-KEY': PRICELABS_API_KEY,
-                'Accept': 'application/json'
-            },
-            validateStatus: function (status) {
-                return status >= 200 && status < 600;
+        const response = await axios.post(
+            url,
+            { listing_ids: [LISTING_ID] },
+            {
+                headers: {
+                    'X-API-KEY': PRICELABS_API_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
             }
-        });
-
-        // Check if response is JSON
-        const contentType = response.headers['content-type'];
-        if (!contentType || !contentType.includes('application/json')) {
-            const bodyPreview = typeof response.data === 'string'
-                ? response.data.substring(0, 100)
-                : JSON.stringify(response.data).substring(0, 100);
-            console.error('PriceLabs returned non-JSON response:', bodyPreview);
-            return;
-        }
+        );
 
         if (response.status !== 200) {
             console.error(`PriceLabs API error (Status ${response.status}):`, JSON.stringify(response.data));
@@ -42,16 +33,18 @@ async function syncRates() {
 
         const data = response.data;
 
-        // The calendar endpoint typically returns an array of daily rates directly, 
-        // or an object with a 'data' property containing the array.
+        // processing logic: map response to daily_rates
+        // Expecting an array of dates and prices, or an object containing it
         const rates = Array.isArray(data) ? data : (data.data || []);
 
         if (!Array.isArray(rates) || rates.length === 0) {
             console.error('Could not find rates array in PriceLabs response. Response keys:', Object.keys(data || {}));
+            // Log a snippet of data to help debugging if structure is different
+            console.error('Response data snippet:', JSON.stringify(data).substring(0, 200));
             return;
         }
 
-        console.log(`Received ${rates.length} daily rates from calendar. Updating database...`);
+        console.log(`Received ${rates.length} daily rates. Updating database...`);
 
         db.serialize(() => {
             const stmt = db.prepare('INSERT OR REPLACE INTO daily_rates (date, price, min_stay) VALUES (?, ?, ?)');
@@ -59,9 +52,11 @@ async function syncRates() {
             db.run('BEGIN TRANSACTION');
 
             rates.forEach(day => {
-                const date = day.date;
+                // Adjust property access based on actual API response keys if needed
+                // Assuming standard keys: date, price, min_stay
+                const date = day.date || day.day; // 'day' is sometimes used in other endpoints, keeping fallback check
                 const price = day.price;
-                const min_stay = day.min_stay;
+                const min_stay = day.min_stay || day.minimum_stay;
 
                 if (date && price) {
                     stmt.run(date, price, min_stay);
@@ -89,7 +84,7 @@ function getRatesForRange(startDate, endDate) {
     return new Promise((resolve, reject) => {
         db.all(
             'SELECT * FROM daily_rates WHERE date >= ? AND date < ?',
-            [startDate, endDate], // endDate is exclusive in booking logic usually, but let's check strict inequalities
+            [startDate, endDate],
             (err, rows) => {
                 if (err) reject(err);
                 else resolve(rows);
