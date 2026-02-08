@@ -12,11 +12,14 @@ async function syncRates() {
 
     try {
         const url = 'https://api.pricelabs.co/v1/listing_prices';
+        const body = { listings: [LISTING_ID] };
+
         console.log(`Fetching rates from PriceLabs via POST ${url} for listing ${LISTING_ID}...`);
+        console.log('Syncing listings: ' + JSON.stringify(body));
 
         const response = await axios.post(
             url,
-            { listing_ids: [LISTING_ID] },
+            body,
             {
                 headers: {
                     'X-API-KEY': PRICELABS_API_KEY,
