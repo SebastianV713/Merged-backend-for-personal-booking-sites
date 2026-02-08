@@ -12,11 +12,20 @@ async function syncRates() {
 
     try {
         const url = 'https://api.pricelabs.co/v1/listing_prices';
+        const today = new Date();
+        const nextYear = new Date();
+        nextYear.setFullYear(today.getFullYear() + 1);
+
+        const dateFrom = today.toISOString().split('T')[0];
+        const dateTo = nextYear.toISOString().split('T')[0];
+
         const body = {
             listings: [
                 {
                     id: String(LISTING_ID),
-                    pms: 'airbnb'
+                    pms: 'airbnb',
+                    dateFrom: dateFrom,
+                    dateTo: dateTo
                 }
             ]
         };
