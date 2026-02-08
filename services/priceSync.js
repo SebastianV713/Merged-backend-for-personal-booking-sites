@@ -52,39 +52,54 @@ async function syncRates() {
 
         const data = response.data;
 
-        // processing logic: map response to daily_rates
-        // Expecting an array of dates and prices, or an object containing it
-        const rates = Array.isArray(data) ? data : (data.data || []);
-
-        if (!Array.isArray(rates) || rates.length === 0) {
-            console.error('Could not find rates array in PriceLabs response. Response keys:', Object.keys(data || {}));
-            // Log a snippet of data to help debugging if structure is different
-            console.error('Response data snippet:', JSON.stringify(data).substring(0, 200));
-            return;
+        // The response from /listing_prices with a list of listings should be an array of listings.
+        // We need to find our listing or iterate through all returned listings (though we only asked for one).
+        let listings = [];
+        if (Array.isArray(data)) {
+            listings = data;
+        } else if (data.data && Array.isArray(data.data)) {
+            // Sometimes APIs wrap arrays in a 'data' key
+            listings = data.data;
+        } else if (data.listings && Array.isArray(data.listings)) {
+            listings = data.listings;
+        } else {
+            // Fallback: if it's a single object that looks like a listing
+            listings = [data];
         }
 
-        console.log(`Received ${rates.length} daily rates. Updating database...`);
+        let totalRatesProcessed = 0;
 
         db.serialize(() => {
             const stmt = db.prepare('INSERT OR REPLACE INTO daily_rates (date, price, min_stay) VALUES (?, ?, ?)');
-
             db.run('BEGIN TRANSACTION');
 
-            rates.forEach(day => {
-                // Adjust property access based on actual API response keys if needed
-                // Assuming standard keys: date, price, min_stay
-                const date = day.date || day.day; // 'day' is sometimes used in other endpoints, keeping fallback check
-                const price = day.price;
-                const min_stay = day.min_stay || day.minimum_stay;
+            listings.forEach(listing => {
+                // Check if this is the listing we asked for (optional safety check, but good if we asked for multiple)
+                // Also check if 'data' or 'prices' exists
+                // The documentation examples usually show 'data' containing the array of days
+                const rates = listing.data || listing.prices || [];
 
-                if (date && price) {
-                    stmt.run(date, price, min_stay);
+                if (Array.isArray(rates)) {
+                    console.log(`Processing ${rates.length} rates for listing ${listing.id || 'unknown'}...`);
+
+                    rates.forEach(day => {
+                        const date = day.date || day.day;
+                        const price = day.price;
+                        const min_stay = day.min_stay || day.minimum_stay;
+
+                        if (date && price) {
+                            stmt.run(date, price, min_stay);
+                            totalRatesProcessed++;
+                        }
+                    });
+                } else {
+                    console.warn(`No rate data found for listing ${listing.id}. content:`, JSON.stringify(listing).substring(0, 200));
                 }
             });
 
             db.run('COMMIT', (err) => {
                 if (err) console.error('Error committing rates transaction:', err);
-                else console.log('Rates synced successfully.');
+                else console.log(`Successfully synced ${totalRatesProcessed} rates to the database.`);
             });
 
             stmt.finalize();
