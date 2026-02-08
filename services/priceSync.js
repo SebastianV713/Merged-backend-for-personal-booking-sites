@@ -12,7 +12,10 @@ async function syncRates() {
 
     try {
         const url = 'https://api.pricelabs.co/v1/listing_prices';
-        const body = { listings: [LISTING_ID] };
+        const body = {
+            listings: [String(LISTING_ID)],
+            pms: 'airbnb'
+        };
 
         console.log(`Fetching rates from PriceLabs via POST ${url} for listing ${LISTING_ID}...`);
         console.log('Syncing listings: ' + JSON.stringify(body));
