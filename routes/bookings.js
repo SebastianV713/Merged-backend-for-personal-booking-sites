@@ -125,7 +125,7 @@ router.post('/:id/checkout', async (req, res) => {
 
             // 4. Create Stripe Session
             // We'll update the booking with any provided guest details first
-            const { guests, guestName, email, checkIn, checkOut } = req.body;
+            const { guests, guestName, email, checkIn, checkOut, hasPets } = req.body;
 
             if (guests || guestName || email) {
                 const updateQuery = `UPDATE bookings SET guests = ?, guest_name = ?, guest_email = ? WHERE id = ?`;
@@ -152,7 +152,8 @@ router.post('/:id/checkout', async (req, res) => {
                     guests,
                     checkIn,
                     checkOut
-                }
+                },
+                hasPets
             );
 
             // Save session ID
