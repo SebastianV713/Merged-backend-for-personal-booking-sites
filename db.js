@@ -33,7 +33,11 @@ db.serialize(() => {
   const columnsToAdd = [
     { name: 'guests', type: 'INTEGER' },
     { name: 'guest_name', type: 'TEXT' },
-    { name: 'guest_email', type: 'TEXT' }
+    { name: 'guest_email', type: 'TEXT' },
+    { name: 'sent_conf', type: 'INTEGER DEFAULT 0' },
+    { name: 'sent_checkin', type: 'INTEGER DEFAULT 0' },
+    { name: 'sent_followup', type: 'INTEGER DEFAULT 0' },
+    { name: 'sent_checkout', type: 'INTEGER DEFAULT 0' }
   ];
 
   columnsToAdd.forEach(col => {

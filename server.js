@@ -10,6 +10,8 @@ const cors = require('cors');
 icalService.startAutoRefresh();
 const priceSyncService = require('./services/priceSync');
 priceSyncService.syncRates();
+const emailScheduler = require('./services/emailScheduler');
+emailScheduler.startEmailScheduler();
 
 const app = express();
 
