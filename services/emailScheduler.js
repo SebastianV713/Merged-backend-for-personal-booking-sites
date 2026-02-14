@@ -1,5 +1,9 @@
 const cron = require('node-cron');
 const db = require('../db');
+const { Resend } = require('resend');
+const emailTemplates = require('./emailTemplates');
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 function startEmailScheduler() {
     console.log('Starting Email Scheduler...');
@@ -20,15 +24,21 @@ function checkAndSendEmails() {
             return;
         }
 
-        bookings.forEach(booking => {
+        bookings.forEach(async (booking) => {
             const startDate = new Date(booking.start_date);
             const endDate = new Date(booking.end_date);
             const guestName = booking.guest_name || 'Guest';
+            const guestEmail = booking.guest_email;
+
+            if (!guestEmail || guestEmail === 'No Email') {
+                console.log(`Skipping email for booking ${booking.id}: No guest email provided.`);
+                return;
+            }
 
             // 1. Confirmation Email
             if (!booking.sent_conf) {
-                logEmailAction('Confirmation', guestName, booking.id);
-                markEmailSent(booking.id, 'sent_conf');
+                const { subject, html } = emailTemplates.getConfirmationEmail(guestName);
+                await sendEmail(guestEmail, subject, html, booking.id, 'sent_conf');
             }
 
             // Calculate time differences in hours
@@ -38,27 +48,52 @@ function checkAndSendEmails() {
 
             // 2. Check-in Email (<= 24 hours before check-in)
             if (!booking.sent_checkin && hoursUntilCheckIn <= 24 && hoursUntilCheckIn > 0) {
-                logEmailAction('Check-in Instructions', guestName, booking.id);
-                markEmailSent(booking.id, 'sent_checkin');
+                const { subject, html } = emailTemplates.getCheckinEmail(guestName);
+                await sendEmail(guestEmail, subject, html, booking.id, 'sent_checkin');
             }
 
             // 3. Follow-up Email (>= 18 hours after check-in)
             if (!booking.sent_followup && hoursSinceCheckIn >= 18) {
-                logEmailAction('Follow-up / All Good?', guestName, booking.id);
-                markEmailSent(booking.id, 'sent_followup');
+                const { subject, html } = emailTemplates.getFollowupEmail(guestName);
+                await sendEmail(guestEmail, subject, html, booking.id, 'sent_followup');
             }
 
             // 4. Checkout Email (<= 18 hours before check-out)
             if (!booking.sent_checkout && hoursUntilCheckOut <= 18 && hoursUntilCheckOut > 0) {
-                logEmailAction('Checkout Instructions', guestName, booking.id);
-                markEmailSent(booking.id, 'sent_checkout');
+                const { subject, html } = emailTemplates.getCheckoutEmail(guestName);
+                await sendEmail(guestEmail, subject, html, booking.id, 'sent_checkout');
             }
         });
     });
 }
 
-function logEmailAction(type, name, id) {
-    console.log(`[EMAIL SIMULATION] Sending '${type}' email to ${name} (Booking ID: ${id})`);
+async function sendEmail(to, subject, html, bookingId, column) {
+    if (!process.env.RESEND_API_KEY) {
+        console.error('RESEND_API_KEY is missing. Cannot send email.');
+        return;
+    }
+
+    try {
+        console.log(`Sending '${subject}' to ${to}...`);
+        const { data, error } = await resend.emails.send({
+            from: 'Muir Woods Bungalow <onboarding@resend.dev>',
+            to: [to],
+            // to: ['delivered@resend.dev'], // Use for testing if domain not verified
+            subject: subject,
+            html: html,
+        });
+
+        if (error) {
+            console.error(`Error sending email to ${to}:`, error);
+            return;
+        }
+
+        console.log(`Email sent successfully! ID: ${data.id}`);
+        markEmailSent(bookingId, column);
+
+    } catch (err) {
+        console.error(`Unexpected error sending email to ${to}:`, err);
+    }
 }
 
 function markEmailSent(bookingId, column) {
@@ -69,5 +104,6 @@ function markEmailSent(bookingId, column) {
 }
 
 module.exports = {
-    startEmailScheduler
+    startEmailScheduler,
+    checkAndSendEmails
 };
