@@ -5,12 +5,12 @@ const db = require('../db');
 const booking = {
     id: uuidv4(),
     guest_name: 'Test Adrian',
-    guest_email: 'your-email@example.com',
+    guest_email: 'sebastianpvaughan@gmail.com',
     start_date: '2026-02-14 15:00:00',
     end_date: '2026-02-16 11:00:00',
     total_price: 20000,
     status: 'confirmed',
-    sent_conf: 1,
+    sent_conf: 0,
     sent_checkin: 0,
     sent_followup: 0,
     sent_checkout: 0

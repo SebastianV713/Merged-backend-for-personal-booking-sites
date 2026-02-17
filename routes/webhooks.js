@@ -3,6 +3,8 @@ const router = express.Router();
 const stripeService = require('../services/stripe');
 const db = require('../db');
 
+const emailScheduler = require('../services/emailScheduler');
+
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
     const signature = req.headers['stripe-signature'];
 
@@ -24,7 +26,12 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
                 `UPDATE bookings SET status = 'confirmed' WHERE id = ?`,
                 [bookingId],
                 (err) => {
-                    if (err) console.error('Error confirming booking:', err);
+                    if (err) {
+                        console.error('Error confirming booking:', err);
+                    } else {
+                        console.log('Booking status confirmed. Triggering email scheduler...');
+                        emailScheduler.checkAndSendEmails();
+                    }
                 }
             );
         }
