@@ -75,6 +75,7 @@ async function sendEmail(to, subject, html, bookingId, column) {
 
     try {
         console.log(`Sending '${subject}' to ${to}...`);
+        console.log('--- [DEBUG] Before Resend Call ---');
         const { data, error } = await resend.emails.send({
             from: 'Muir Woods Bungalow <onboarding@resend.dev>',
             to: [to],
@@ -82,6 +83,7 @@ async function sendEmail(to, subject, html, bookingId, column) {
             subject: subject,
             html: html,
         });
+        console.log('--- [DEBUG] After Resend Call ---');
 
         if (error) {
             console.error(`Error sending email to ${to}:`, error);

@@ -8,7 +8,7 @@ const emailScheduler = require('../services/emailScheduler');
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
     const signature = req.headers['stripe-signature'];
 
-    console.log('--- Received Stripe Webhook ---');
+    console.log('--- [DEBUG] Stripe Webhook Entry ---');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Body (Snippet):', req.body.toString().substring(0, 500) + '...'); // Log first 500 chars to avoid log spam
     console.log('Signature:', signature);
@@ -18,6 +18,7 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
     try {
         event = await stripeService.constructEvent(req.body, signature);
         console.log('Webhook signature verification succeeded.');
+        console.log('--- [DEBUG] After Signature Verification ---');
         console.log('Event Type:', event.type);
     } catch (err) {
         console.error(`Webhook signature verification failed.`);
