@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const bookingRoutes = require('./routes/bookings');
-const webhookRoutes = require('./routes/webhooks'); // Import webhook routes
+// Webhooks handled inline
 const path = require('path');
 const icalService = require('./services/ical');
 const cors = require('cors');
@@ -51,8 +51,50 @@ app.use(cors({
 }));
 const port = process.env.PORT || 3000;
 
-// Webhooks must be mounted BEFORE express.json() to access raw body
-app.use('/webhooks', webhookRoutes);
+const db = require('./db');
+const stripeService = require('./services/stripe');
+
+// Webhook route defined BEFORE express.json()
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+    const signature = req.headers['stripe-signature'];
+
+    console.log('--- [DEBUG] Stripe Webhook Entry ---');
+    console.log('Signature:', signature);
+
+    let event;
+    try {
+        // Because of express.raw(), req.body is exactly the raw buffer Stripe sent
+        event = await stripeService.constructEvent(req.body, signature);
+        console.log('Webhook signature verified successfully');
+    } catch (err) {
+        console.error('Webhook signature verification failed');
+        console.error(`Err: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const bookingId = session.metadata ? session.metadata.bookingId : null;
+
+        if (bookingId) {
+            console.log(`Payment confirmed for booking ${bookingId}`);
+            db.run(
+                `UPDATE bookings SET status = 'confirmed' WHERE id = ?`,
+                [bookingId],
+                (err) => {
+                    if (err) {
+                        console.error('Error confirming booking:', err);
+                    } else {
+                        console.log('Booking confirmed. Triggering emails...');
+                        emailScheduler.checkAndSendEmails();
+                    }
+                }
+            );
+        }
+    }
+
+    res.json({ received: true });
+});
 
 app.use(express.json());
 
