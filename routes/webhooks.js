@@ -29,11 +29,16 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
     }
 
     if (event.type === 'checkout.session.completed') {
+        console.log('--- [DEBUG] checkout.session.completed EVENT RECEIVED ---');
         const session = event.data.object;
-        const bookingId = session.metadata.bookingId;
+        console.log(`Session ID: ${session.id}`);
+        console.log(`Metadata:`, session.metadata);
+
+        const bookingId = session.metadata ? session.metadata.bookingId : null;
 
         if (bookingId) {
             console.log(`Payment confirmed for booking ${bookingId}`);
+            console.log(`Updating database for booking ${bookingId} to status 'confirmed'...`);
             db.run(
                 `UPDATE bookings SET status = 'confirmed' WHERE id = ?`,
                 [bookingId],
