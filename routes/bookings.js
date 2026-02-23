@@ -161,7 +161,7 @@ router.post('/:id/checkout', async (req, res) => {
                 if (err) console.error("Failed to update booking with session ID", err);
             });
 
-            res.json({ sessionId: session.id });
+            res.json({ sessionId: session.id, url: session.url });
         } catch (e) {
             console.error('Checkout error:', e);
             res.status(500).json({ error: 'Payment initialization failed' });
