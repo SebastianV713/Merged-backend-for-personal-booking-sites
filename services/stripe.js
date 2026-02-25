@@ -4,6 +4,8 @@ require('dotenv').config();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 async function createCheckoutSession(bookingId, amountCents, successUrl, cancelUrl, customerEmail, metadata = {}, hasPets = false) {
+    const taxRates = process.env.STRIPE_TAX_RATE_ID ? [process.env.STRIPE_TAX_RATE_ID] : [];
+
     const lineItems = [
         {
             price_data: {
@@ -15,6 +17,7 @@ async function createCheckoutSession(bookingId, amountCents, successUrl, cancelU
                 unit_amount: amountCents,
             },
             quantity: 1,
+            tax_rates: taxRates,
         },
         {
             price_data: {
@@ -25,6 +28,7 @@ async function createCheckoutSession(bookingId, amountCents, successUrl, cancelU
                 unit_amount: 16500, // $165.00
             },
             quantity: 1,
+            tax_rates: taxRates,
         }
     ];
 
@@ -38,6 +42,7 @@ async function createCheckoutSession(bookingId, amountCents, successUrl, cancelU
                 unit_amount: 6500, // $65.00
             },
             quantity: 1,
+            // No tax on pet fee
         });
     }
 
