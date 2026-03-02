@@ -64,9 +64,10 @@ router.post('/', async (req, res) => {
     const id = uuidv4();
     const totalPrice = rate * nights * 100; // in cents
 
+    const bookingCreatedAt = new Date().toISOString();
     db.run(
-        `INSERT INTO bookings (id, start_date, end_date, total_price, status) VALUES (?, ?, ?, ?, ?)`,
-        [id, startDate, endDate, totalPrice, 'pending'],
+        `INSERT INTO bookings (id, start_date, end_date, total_price, status, booking_created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [id, startDate, endDate, totalPrice, 'pending', bookingCreatedAt],
         (err) => {
             if (err) {
                 console.error(err);
@@ -112,21 +113,31 @@ router.post('/:id/checkout', async (req, res) => {
                 totalCents = booking.total_price;
             }
 
-            // Update booking with new total
+            // Calculate deposit/remaining split
+            const TAX_RATE = parseFloat(process.env.STRIPE_TAX_RATE_DECIMAL || '0');
+            const cleaningFeeCents = 16500;
+            const { guests, guestName, email, checkIn, checkOut, hasPets } = req.body;
+            const petFeeCents = hasPets ? 6500 : 0;
+            const taxableSubtotal = totalCents + cleaningFeeCents;
+            const taxAmount = Math.round(taxableSubtotal * TAX_RATE);
+            const grandTotal = totalCents + cleaningFeeCents + petFeeCents + taxAmount;
+
+            const depositCents = Math.round(grandTotal / 2);
+            const remainingCents = grandTotal - depositCents;
+
+            // Update booking with totals
             await new Promise((resolve, reject) => {
-                db.run('UPDATE bookings SET total_price = ? WHERE id = ?', [totalCents, booking.id], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
+                db.run(
+                    'UPDATE bookings SET total_price = ?, deposit_amount = ?, remaining_amount = ? WHERE id = ?',
+                    [grandTotal, depositCents, remainingCents, booking.id],
+                    (err) => { if (err) reject(err); else resolve(); }
+                );
             });
 
-            // Update local object for Stripe creation
-            booking.total_price = totalCents;
+            // Update local object
+            booking.total_price = grandTotal;
 
-            // 4. Create Stripe Session
-            // We'll update the booking with any provided guest details first
-            const { guests, guestName, email, checkIn, checkOut, hasPets } = req.body;
-
+            // 4. Update booking with guest details
             if (guests || guestName || email) {
                 const updateQuery = `UPDATE bookings SET guests = ?, guest_name = ?, guest_email = ? WHERE id = ?`;
                 await new Promise((resolve) => {
@@ -143,17 +154,13 @@ router.post('/:id/checkout', async (req, res) => {
 
             const session = await stripeService.createCheckoutSession(
                 booking.id,
-                booking.total_price,
+                depositCents,
                 successUrl,
                 cancelUrl,
-                email, // customerEmail
-                { // metadata
-                    guestName,
-                    guests,
-                    checkIn,
-                    checkOut
-                },
-                hasPets
+                email,
+                { guestName, guests, checkIn, checkOut },
+                hasPets,
+                true // isDeposit
             );
 
             // Save session ID
@@ -165,6 +172,56 @@ router.post('/:id/checkout', async (req, res) => {
         } catch (e) {
             console.error('Checkout error:', e);
             res.status(500).json({ error: 'Payment initialization failed' });
+        }
+    });
+});
+
+// Self-service cancellation
+router.post('/:id/cancel', async (req, res) => {
+    const bookingId = req.params.id;
+
+    db.get('SELECT * FROM bookings WHERE id = ?', [bookingId], async (err, booking) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (!booking) return res.status(404).json({ error: 'Booking not found' });
+        if (booking.status !== 'confirmed') {
+            return res.status(400).json({ error: 'Only confirmed bookings can be cancelled' });
+        }
+
+        let refunded = false;
+
+        try {
+            // Check if within 24h of booking creation
+            const createdAt = booking.booking_created_at ? new Date(booking.booking_created_at) : null;
+            const hoursSinceCreation = createdAt
+                ? (Date.now() - createdAt.getTime()) / (1000 * 60 * 60)
+                : Infinity;
+
+            if (hoursSinceCreation <= 24 && booking.stripe_session_id) {
+                // Full refund: retrieve session to get payment_intent
+                const session = await stripeService.retrieveCheckoutSession(booking.stripe_session_id, {
+                    expand: ['payment_intent']
+                });
+                const paymentIntentId = session.payment_intent && session.payment_intent.id
+                    ? session.payment_intent.id
+                    : session.payment_intent;
+
+                if (paymentIntentId) {
+                    await stripeService.createRefund(paymentIntentId, null);
+                    refunded = true;
+                }
+            }
+
+            // Mark booking as cancelled
+            await new Promise((resolve, reject) => {
+                db.run('UPDATE bookings SET status = ? WHERE id = ?', ['cancelled', bookingId], (err) => {
+                    if (err) reject(err); else resolve();
+                });
+            });
+
+            res.json({ success: true, refunded });
+        } catch (e) {
+            console.error('Cancellation error:', e);
+            res.status(500).json({ error: 'Cancellation failed' });
         }
     });
 });

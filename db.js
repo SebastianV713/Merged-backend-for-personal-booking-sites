@@ -37,7 +37,17 @@ db.serialize(() => {
     { name: 'sent_conf', type: 'INTEGER DEFAULT 0' },
     { name: 'sent_checkin', type: 'INTEGER DEFAULT 0' },
     { name: 'sent_followup', type: 'INTEGER DEFAULT 0' },
-    { name: 'sent_checkout', type: 'INTEGER DEFAULT 0' }
+    { name: 'sent_checkout', type: 'INTEGER DEFAULT 0' },
+    { name: 'booking_created_at', type: 'TEXT' },
+    { name: 'deposit_amount', type: 'INTEGER DEFAULT 0' },
+    { name: 'remaining_amount', type: 'INTEGER DEFAULT 0' },
+    { name: 'deposit_paid', type: 'INTEGER DEFAULT 0' },
+    { name: 'remaining_paid', type: 'INTEGER DEFAULT 0' },
+    { name: 'remaining_charge_failed', type: 'INTEGER DEFAULT 0' },
+    { name: 'stripe_customer_id', type: 'TEXT' },
+    { name: 'stripe_payment_method_id', type: 'TEXT' },
+    { name: 'sent_second_charge_receipt', type: 'INTEGER DEFAULT 0' },
+    { name: 'sent_second_charge_fail', type: 'INTEGER DEFAULT 0' }
   ];
 
   columnsToAdd.forEach(col => {

@@ -12,6 +12,8 @@ const priceSyncService = require('./services/priceSync');
 priceSyncService.syncRates();
 const emailScheduler = require('./services/emailScheduler');
 emailScheduler.startEmailScheduler();
+const paymentScheduler = require('./services/paymentScheduler');
+paymentScheduler.startPaymentScheduler();
 
 const app = express();
 
@@ -53,6 +55,8 @@ const port = process.env.PORT || 3000;
 
 const db = require('./db');
 const stripeService = require('./services/stripe');
+const emailTemplates = require('./services/emailTemplates');
+const { sendEmail } = require('./services/emailSender');
 
 // Webhook route defined BEFORE express.json()
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -72,28 +76,56 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
+    // Respond immediately so Stripe doesn't retry
+    res.json({ received: true });
+
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const bookingId = session.metadata ? session.metadata.bookingId : null;
 
         if (bookingId) {
             console.log(`Payment confirmed for booking ${bookingId}`);
-            db.run(
-                `UPDATE bookings SET status = 'confirmed' WHERE id = ?`,
-                [bookingId],
-                (err) => {
-                    if (err) {
-                        console.error('Error confirming booking:', err);
-                    } else {
-                        console.log('Booking confirmed. Triggering emails...');
-                        emailScheduler.checkAndSendEmails();
+
+            try {
+                // Retrieve full session to get customer and payment method
+                const fullSession = await stripeService.retrieveCheckoutSession(session.id, {
+                    expand: ['payment_intent']
+                });
+                const customerId = fullSession.customer;
+                const paymentMethodId = fullSession.payment_intent && fullSession.payment_intent.payment_method;
+
+                await new Promise((resolve, reject) => {
+                    db.run(
+                        `UPDATE bookings SET status = 'confirmed', deposit_paid = 1, stripe_customer_id = ?, stripe_payment_method_id = ? WHERE id = ?`,
+                        [customerId, paymentMethodId, bookingId],
+                        (err) => { if (err) reject(err); else resolve(); }
+                    );
+                });
+
+                console.log('Booking confirmed. customer:', customerId, 'pm:', paymentMethodId);
+
+                // Send deposit confirmation email
+                db.get('SELECT * FROM bookings WHERE id = ?', [bookingId], async (err, booking) => {
+                    if (err || !booking) {
+                        console.error('Could not fetch booking for deposit email:', err);
+                        return;
                     }
-                }
-            );
+                    if (booking.guest_email && booking.guest_email !== 'No Email') {
+                        const { subject, html } = emailTemplates.getDepositConfirmationEmail(
+                            booking.guest_name || 'Guest',
+                            booking.deposit_amount,
+                            booking.remaining_amount,
+                            booking.start_date
+                        );
+                        await sendEmail(booking.guest_email, subject, html, null, null);
+                    }
+                    emailScheduler.checkAndSendEmails();
+                });
+            } catch (err) {
+                console.error('Error processing checkout.session.completed:', err);
+            }
         }
     }
-
-    res.json({ received: true });
 });
 
 app.use(express.json());
@@ -155,16 +187,27 @@ app.get('/bookings/calculate-price', async (req, res) => {
             // Existing bookings/checkout uses booking.total_price if no dynamic rates.
         }
 
-        const cleaningFee = parseInt(process.env.CLEANING_FEE || '0', 10);
-        const total = subtotal + cleaningFee;
         const nightlyRate = nights > 0 ? Math.round(subtotal / nights) : 0;
+
+        const cleaningFee = 165; // $165, matches checkout
+        const hasPets = req.query.hasPets === 'true';
+        const petFee = hasPets ? 65 : 0;
+        const TAX_RATE = parseFloat(process.env.STRIPE_TAX_RATE_DECIMAL || '0');
+        const tax = Math.round((subtotal + cleaningFee) * TAX_RATE * 100) / 100;
+        const total = subtotal + cleaningFee + petFee + tax;
+        const depositAmount = Math.round(total * 100 / 2) / 100;
+        const remainingAmount = Math.round((total - depositAmount) * 100) / 100;
 
         res.json({
             nights,
             nightly_rate: nightlyRate,
             subtotal,
             cleaning_fee: cleaningFee,
-            total
+            pet_fee: petFee,
+            tax,
+            total,
+            deposit_amount: depositAmount,
+            remaining_amount: remainingAmount
         });
 
     } catch (error) {

@@ -1,9 +1,7 @@
 const cron = require('node-cron');
 const db = require('../db');
-const { Resend } = require('resend');
 const emailTemplates = require('./emailTemplates');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const { sendEmail, markEmailSent } = require('./emailSender');
 
 function startEmailScheduler() {
     console.log('Starting Email Scheduler...');
@@ -64,44 +62,6 @@ function checkAndSendEmails() {
                 await sendEmail(guestEmail, subject, html, booking.id, 'sent_checkout');
             }
         });
-    });
-}
-
-async function sendEmail(to, subject, html, bookingId, column) {
-    if (!process.env.RESEND_API_KEY) {
-        console.error('RESEND_API_KEY is missing. Cannot send email.');
-        return;
-    }
-
-    try {
-        console.log(`Sending '${subject}' to ${to}...`);
-        console.log('--- [DEBUG] Before Resend Call ---');
-        const { data, error } = await resend.emails.send({
-            from: 'Muir Woods Bungalow <onboarding@resend.dev>',
-            to: [to],
-            // to: ['delivered@resend.dev'], // Use for testing if domain not verified
-            subject: subject,
-            html: html,
-        });
-        console.log('--- [DEBUG] After Resend Call ---');
-
-        if (error) {
-            console.error(`Error sending email to ${to}:`, error);
-            return;
-        }
-
-        console.log(`Email sent successfully! ID: ${data.id}`);
-        markEmailSent(bookingId, column);
-
-    } catch (err) {
-        console.error(`Unexpected error sending email to ${to}:`, err);
-    }
-}
-
-function markEmailSent(bookingId, column) {
-    db.run(`UPDATE bookings SET ${column} = 1 WHERE id = ?`, [bookingId], (err) => {
-        if (err) console.error(`Error updating ${column} for booking ${bookingId}:`, err);
-        else console.log(`Marked ${column} as sent for booking ${bookingId}`);
     });
 }
 
