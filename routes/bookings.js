@@ -176,6 +176,29 @@ router.post('/:id/checkout', async (req, res) => {
     });
 });
 
+// Get booking details (guest-facing, safe fields only)
+router.get('/:id', (req, res) => {
+    db.get('SELECT * FROM bookings WHERE id = ?', [req.params.id], (err, booking) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+        res.json({
+            id: booking.id,
+            status: booking.status,
+            start_date: booking.start_date,
+            end_date: booking.end_date,
+            guests: booking.guests,
+            guest_name: booking.guest_name,
+            deposit_amount: booking.deposit_amount,
+            remaining_amount: booking.remaining_amount,
+            deposit_paid: booking.deposit_paid,
+            remaining_paid: booking.remaining_paid,
+            remaining_charge_failed: booking.remaining_charge_failed,
+            booking_created_at: booking.booking_created_at
+        });
+    });
+});
+
 // Self-service cancellation
 router.post('/:id/cancel', async (req, res) => {
     const bookingId = req.params.id;

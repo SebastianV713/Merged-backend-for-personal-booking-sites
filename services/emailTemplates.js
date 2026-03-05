@@ -40,7 +40,7 @@ const getCheckoutEmail = (guestName) => {
     };
 };
 
-const getDepositConfirmationEmail = (guestName, depositCents, remainingCents, checkInDate) => {
+const getDepositConfirmationEmail = (guestName, depositCents, remainingCents, checkInDate, bookingLink) => {
     const depositDollars = (depositCents / 100).toFixed(2);
     const remainingDollars = (remainingCents / 100).toFixed(2);
     return {
@@ -48,6 +48,7 @@ const getDepositConfirmationEmail = (guestName, depositCents, remainingCents, ch
         html: `<p>Hi ${guestName},</p>
 <p>We've received your deposit of <strong>$${depositDollars}</strong> for Muir Woods Bungalow. Your booking is confirmed!</p>
 <p>The remaining balance of <strong>$${remainingDollars}</strong> will be automatically charged to your card on file 24 hours before your check-in on <strong>${checkInDate}</strong>.</p>
+<p><a href="${bookingLink}">View or manage your booking</a></p>
 <p>If you have any questions, feel free to contact Peter at <strong>415-381-2949</strong>.</p>
 <p>We look forward to hosting you!</p>
 <p>Best,<br>The Team</p>`

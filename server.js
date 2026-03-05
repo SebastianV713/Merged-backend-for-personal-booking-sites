@@ -111,11 +111,13 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
                         return;
                     }
                     if (booking.guest_email && booking.guest_email !== 'No Email') {
+                        const bookingLink = `${process.env.FRONTEND_URL || 'https://workspace.vaughanbusiness.replit.app'}/my-booking?id=${booking.id}`;
                         const { subject, html } = emailTemplates.getDepositConfirmationEmail(
                             booking.guest_name || 'Guest',
                             booking.deposit_amount,
                             booking.remaining_amount,
-                            booking.start_date
+                            booking.start_date,
+                            bookingLink
                         );
                         await sendEmail(booking.guest_email, subject, html, null, null);
                     }
