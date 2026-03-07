@@ -119,7 +119,7 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
                             booking.start_date,
                             bookingLink
                         );
-                        await sendEmail(booking.guest_email, subject, html, null, null);
+                        await sendEmail(booking.guest_email, subject, html, booking.id, 'sent_conf');
                     }
                     emailScheduler.checkAndSendEmails();
                 });
