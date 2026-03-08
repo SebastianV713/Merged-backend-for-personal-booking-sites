@@ -5,6 +5,7 @@ const bookingRoutes = require('./routes/bookings');
 const path = require('path');
 const icalService = require('./services/ical');
 const cors = require('cors');
+const cron = require('node-cron');
 
 // Start backend services
 icalService.startAutoRefresh();
@@ -14,6 +15,20 @@ const emailScheduler = require('./services/emailScheduler');
 emailScheduler.startEmailScheduler();
 const paymentScheduler = require('./services/paymentScheduler');
 paymentScheduler.startPaymentScheduler();
+
+// Clean up stale pending bookings every 30 minutes
+cron.schedule('*/30 * * * *', () => {
+    const db = require('./db');
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    db.run(
+        `DELETE FROM bookings WHERE status = 'pending' AND booking_created_at < ?`,
+        [cutoff],
+        function(err) {
+            if (err) console.error('Pending booking cleanup error:', err);
+            else if (this.changes > 0) console.log(`Expired and deleted ${this.changes} stale pending booking(s)`);
+        }
+    );
+});
 
 const app = express();
 
