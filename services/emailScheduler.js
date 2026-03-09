@@ -46,7 +46,7 @@ function checkAndSendEmails() {
 
             // 2. Check-in Email (<= 24 hours before check-in)
             if (!booking.sent_checkin && hoursUntilCheckIn <= 24 && hoursUntilCheckIn > 0) {
-                const { subject, html } = emailTemplates.getCheckinEmail(guestName);
+                const { subject, html } = emailTemplates.getCheckinEmail(guestName, booking.start_date);
                 await sendEmail(guestEmail, subject, html, booking.id, 'sent_checkin');
             }
 
