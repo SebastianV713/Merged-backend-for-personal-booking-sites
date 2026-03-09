@@ -126,7 +126,7 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
                         return;
                     }
                     if (booking.guest_email && booking.guest_email !== 'No Email') {
-                        const bookingLink = `${process.env.FRONTEND_URL || 'https://workspace.vaughanbusiness.replit.app'}/my-booking?id=${booking.id}`;
+                        const bookingLink = `${process.env.FRONTEND_URL || 'https://muir-woods-bungalow.replit.app'}/my-booking?id=${booking.id}`;
                         const { subject, html } = emailTemplates.getDepositConfirmationEmail(
                             booking.guest_name || 'Guest',
                             booking.deposit_amount,

@@ -148,7 +148,7 @@ router.post('/:id/checkout', async (req, res) => {
                 });
             }
 
-            const baseUrl = process.env.FRONTEND_URL || 'https://workspace.vaughanbusiness.replit.app';
+            const baseUrl = process.env.FRONTEND_URL || 'https://muir-woods-bungalow.replit.app';
             const successUrl = `${baseUrl}/booking-success?session_id={CHECKOUT_SESSION_ID}`;
             const cancelUrl = `${baseUrl}/booking`;
 
