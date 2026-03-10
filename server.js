@@ -106,7 +106,10 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
                 const fullSession = await stripeService.retrieveCheckoutSession(session.id, {
                     expand: ['payment_intent']
                 });
-                const customerId = fullSession.customer;
+                // customer may live on the session or on the payment_intent
+                // depending on whether customer_email or customer was used at checkout
+                const customerId = fullSession.customer
+                    || (fullSession.payment_intent && fullSession.payment_intent.customer);
                 const paymentMethodId = fullSession.payment_intent && fullSession.payment_intent.payment_method;
 
                 await new Promise((resolve, reject) => {

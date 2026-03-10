@@ -3,13 +3,16 @@ const db = require('../db');
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    family: 4, // Force IPv4 — Railway does not support outbound IPv6
+    port: 587,
+    secure: false, // STARTTLS — port 465 (SSL) is silently dropped on Railway
+    family: 4,     // Force IPv4 — Railway does not support outbound IPv6
     auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
     },
+    connectionTimeout: 15000,
+    greetingTimeout:   10000,
+    socketTimeout:     15000,
 });
 
 async function sendEmail(to, subject, html, bookingId, column) {
