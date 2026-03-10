@@ -1,29 +1,18 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const db = require('../db');
 
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,  // immediate SSL — no plaintext STARTTLS phase
-    family: 4,     // force IPv4 — Railway has no outbound IPv6
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-    },
-    connectionTimeout: 15000,
-    socketTimeout:     15000,
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmail(to, subject, html, bookingId, column) {
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-        console.error('GMAIL_USER or GMAIL_APP_PASSWORD is missing. Cannot send email.');
+    if (!process.env.RESEND_API_KEY) {
+        console.error('RESEND_API_KEY is missing. Cannot send email.');
         return;
     }
 
     try {
         console.log(`Sending '${subject}' to ${to}...`);
-        await transporter.sendMail({
-            from: `Muir Woods Bungalow <${process.env.GMAIL_USER}>`,
+        await resend.emails.send({
+            from: 'Muir Woods Bungalow <onboarding@resend.dev>',
             to,
             subject,
             html,
