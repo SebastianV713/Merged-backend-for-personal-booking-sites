@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const availabilityService = require('../services/availability');
 const stripeService = require('../services/stripe');
@@ -61,6 +60,7 @@ router.post('/', async (req, res) => {
         return res.status(409).json({ error: 'Dates not available' });
     }
 
+    const { v4: uuidv4 } = await import('uuid');
     const id = uuidv4();
     const totalPrice = rate * nights * 100; // in cents
 
