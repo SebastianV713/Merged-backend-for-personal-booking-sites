@@ -12,7 +12,7 @@ async function sendEmail(to, subject, html, bookingId, column) {
     try {
         console.log(`Sending '${subject}' to ${to}...`);
         await resend.emails.send({
-            from: 'Muir Woods Bungalow <onboarding@resend.dev>',
+            from: 'Muir Woods Bungalow <bookings@muirwoodsbungalow.com>',
             to,
             subject,
             html,
