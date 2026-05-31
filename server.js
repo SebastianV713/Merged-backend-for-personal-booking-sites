@@ -46,17 +46,12 @@ app.use(cors({
 
         const allowedOrigins = [
             'http://localhost:3000',
-            'https://workspace.vaughanbusiness.replit.app',
             'http://127.0.0.1:5000',
             'http://localhost:5000',
-            // Add dynamic origin check if needed, or specific domains
-            // The user asked for "https://[YOUR_PUBLISHED_REPLIT_DOMAIN]" which implies they might replace it or it's a placeholder.
-            // We'll trust the process.env.FRONTEND_URL for the dynamic one if set.
             process.env.FRONTEND_URL
-        ];
+        ].filter(Boolean);
 
-        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.replit.app')) {
-            // allowing all replit.app subdomains to be safe since user didn't specify the exact "YOUR_PUBLISHED_REPLIT_DOMAIN" value
+        if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -129,7 +124,7 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
                         return;
                     }
                     if (booking.guest_email && booking.guest_email !== 'No Email') {
-                        const bookingLink = `${process.env.FRONTEND_URL || 'https://muir-woods-bungalow.replit.app'}/my-booking?id=${booking.id}`;
+                        const bookingLink = `${process.env.FRONTEND_URL}/my-booking?id=${booking.id}`;
                         const { subject, html } = emailTemplates.getDepositConfirmationEmail(
                             booking.guest_name || 'Guest',
                             booking.deposit_amount,
