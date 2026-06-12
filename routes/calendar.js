@@ -7,9 +7,13 @@ function formatIcalDate(dateStr) {
     return dateStr.replace(/-/g, '');
 }
 
-// GET /calendar/direct-bookings.ics
+// GET /calendar/direct-bookings.ics?token=<ICAL_SECRET_TOKEN>
 // Returns confirmed direct bookings as an iCal feed for Airbnb to import
 router.get('/direct-bookings.ics', (req, res) => {
+    const secret = process.env.ICAL_SECRET_TOKEN;
+    if (secret && req.query.token !== secret) {
+        return res.status(401).send('Unauthorized');
+    }
     db.all(
         `SELECT id, start_date, end_date, guest_name FROM bookings WHERE status = 'confirmed'`,
         [],
