@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const bookingRoutes = require('./routes/bookings');
+const calendarRoutes = require('./routes/calendar');
 // Webhooks handled inline
 const path = require('path');
 const icalService = require('./services/ical');
@@ -232,6 +233,7 @@ app.get('/bookings/calculate-price', async (req, res) => {
 });
 
 app.use('/bookings', bookingRoutes);
+app.use('/calendar', calendarRoutes);
 
 app.get('/', (req, res) => {
     res.send('Short-Term Rental Backend is running');
