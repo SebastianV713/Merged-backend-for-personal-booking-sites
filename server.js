@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const bookingRoutes = require('./routes/bookings');
 const calendarRoutes = require('./routes/calendar');
 // Webhooks handled inline
@@ -32,6 +34,35 @@ cron.schedule('*/30 * * * *', () => {
 });
 
 const app = express();
+
+// Security headers
+app.use(helmet());
+
+// Rate limiters
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const checkoutLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+});
+
+const contactLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+});
+
+app.use(generalLimiter);
 
 // Log all incoming requests for debugging
 app.use((req, res, next) => {
@@ -232,6 +263,7 @@ app.get('/bookings/calculate-price', async (req, res) => {
     }
 });
 
+app.use('/bookings/:id/checkout', checkoutLimiter);
 app.use('/bookings', bookingRoutes);
 app.use('/calendar', calendarRoutes);
 
